@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>フォトビンゴシート</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    /* ======= BINGOヘッダー ======= */
+    .bingo-header {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 3px;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 3px;
+    }
+
+    .header-cell {
+      background: #e74c3c;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 6px 0;
+    }
+
+    /* ======= グリッド ======= */
+    .bingo-wrapper {
+      width: 100%;
+      max-width: 500px;
+      background: #2c3e50;
+      padding: 3px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .bingo-table {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 3px;
+    }
+
+    /* ======= セル ======= */
+    .cell {
+      aspect-ratio: 1 / 1;
+      background: white;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cell .placeholder {
+      font-size: clamp(20px, 5vw, 32px);
+      color: #bdc3c7;
+    }
+
+    /* FREEスペース */
+    .cell.free {
+      background: #f39c12;
+      cursor: default;
+    }
+    .cell.free .free-text {
+      color: white;
+      font-size: clamp(11px, 3vw, 16px);
+      font-weight: bold;
+    }
+
+    /* ラベル */
+    .cell .label-input {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.55);
+      color: white;
+      border: none;
+      text-align: center;
+      font-size: clamp(8px, 2vw, 11px);
+      padding: 2px 2px 3px;
+      outline: none;
+      z-index: 2;
+    }
+
+    .cell input[type="file"] { display: none; }
+
+    /* チェックマーク */
+    .cell.checked::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(30px, 8vw, 56px);
+      color: rgba(231, 76, 60, 0.85);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* ======= 削除ボタン ======= */
+    .delete-btn {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 22px;
+      height: 22px;
+      background: rgba(231, 76, 60, 0.9);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: bold;
+      line-height: 22px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 4;
+      padding: 0;
+      display: none;
+    }
+
+    /* PC：ホバー時のみ */
+    .cell.has-image:hover .delete-btn { display: block; }
+
+    /* スマホ：常時表示 */
+    @media (hover: none) and (pointer: coarse) {
+      .cell.has-image .delete-btn {
+        display: block;
+        width: 24px;
+        height: 24px;
+        font-size: 13px;
+        line-height: 24px;
+      }
+    }
+
+    /* ======= モーダル ======= */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal-sheet {
+      background: white;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      animation: slideUp 0.2s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+
+    .modal-title {
+      text-align: center;
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    .modal-preview {
+      width: 100%;
+      max-height: 160px;
+      object-fit: contain;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .modal-preview.show { display: block; }
+
+    .modal-btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .modal-btn-library  { background: #3498db; color: white; }
+    .modal-btn-camera   { background: #9b59b6; color: white; }
+    .modal-btn-check    { background: #2ecc71; color: white; }
+    .modal-btn-uncheck  { background: #95a5a6; color: white; }
+    .modal-btn-delete   { background: #e74c3c; color: white; }
+    .modal-btn-cancel   { background: #ecf0f1; color: #333; }
+
+    /* ======= コントロール ======= */
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .ctrl-btn {
+      flex: 1;
+      min-width: 90px;
+      padding: 12px 8px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+    .ctrl-btn:active { opacity: 0.7; }
+
+    .btn-print { background: #3498db; color: white; }
+    .btn-reset { background: #e74c3c; color: white; }
+    .btn-save  { background: #2ecc71; color: white; }
+
+    .instructions {
+      margin-top: 12px;
+      color: #888;
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* ======= 印刷 ======= */
+    @media print {
+      body { background: white; padding: 0; }
+      h1, .controls, .instructions, .modal-overlay { display: none !important; }
+      .bingo-wrapper { box-shadow: none; max-width: 100%; }
+      .delete-btn { display: none !important; }
+
+      /* 写真ありのラベル：濃い背景＋白文字 */
+      .cell.has-image .label-input {
+        background: rgba(0, 0, 0, 0.75);
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        padding: 3px 4px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* 写真なしのラベル：黒文字 */
+      .cell:not(.has-image) .label-input {
+        background: transparent;
+        color: black;
+        font-size: 12px;
+        font-weight: bold;
+        padding: 3px 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📸 フォトビンゴシート</h1>
+
+  <div class="bingo-header">
+    <div class="header-cell">B</div>
+    <div class="header-cell">I</div>
+    <div class="header-cell">N</div>
+    <div class="header-cell">G</div>
+    <div class="header-cell">O</div>
+  </div>
+
+  <div class="bingo-wrapper">
+    <div class="bingo-table" id="bingoGrid"></div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn btn-print" onclick="window.print()">🖨️ 印刷</button>
+    <button class="ctrl-btn btn-save"  onclick="saveAsImage()">💾 保存</button>
+    <button class="ctrl-btn btn-reset" onclick="resetAll()">🔄 リセット</button>
+  </div>
+
+  <p class="instructions">
+    📱 マスをタップ → ライブラリ／カメラを選択<br>
+    ✅ 写真ありのマスをタップ → チェックON/OFF<br>
+    🗑️ 右上の ✕ で写真を削除
+  </p>
+
+  <!-- モーダル -->
+  <div class="modal-overlay" id="modalOverlay" onclick="overlayTap(event)">
+    <div class="modal-sheet">
+      <p class="modal-title" id="modalTitle">操作を選んでください</p>
+      <img class="modal-preview" id="modalPreview" src="" alt="preview">
+
+      <button class="modal-btn modal-btn-library" id="btnLibrary" onclick="modalAction('library')">
+        🖼️ ライブラリから選ぶ
+      </button>
+      <button class="modal-btn modal-btn-camera" id="btnCamera" onclick="modalAction('camera')">
+        📷 カメラで撮影する
+      </button>
+
+      <button class="modal-btn modal-btn-library" id="btnReplace" onclick="modalAction('library')" style="display:none">
+        🖼️ 写真を変更する
+      </button>
+      <button class="modal-btn modal-btn-check"   id="btnCheck"   onclick="modalAction('check')"   style="display:none">
+        ✅ チェックする
+      </button>
+      <button class="modal-btn modal-btn-uncheck" id="btnUncheck" onclick="modalAction('uncheck')" style="display:none">
+        ☑️ チェックを外す
+      </button>
+      <button class="modal-btn modal-btn-delete"  id="btnDelete"  onclick="modalAction('delete')"  style="display:none">
+        🗑️ 写真を削除する
+      </button>
+
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- ファイル選択input -->
+  <input type="file" id="inputLibrary" accept="image/*"                     style="display:none">
+  <input type="file" id="inputCamera"  accept="image/*" capture="environment" style="display:none">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    const FREE_INDEX = 12;
+    let currentModalIndex = -1;
+
+    const cellData = Array.from({ length: 25 }, () => ({
+      image: null,
+      label: '',
+      checked: false
+    }));
+
+    // =========== タッチ判定 ===========
+    function isTouchDevice() {
+      return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    }
+
+    // =========== グリッド構築 ===========
+    function buildGrid() {
+      const grid = document.getElementById('bingoGrid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 25; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.index = i;
+
+        if (i === FREE_INDEX) {
+          cell.classList.add('free');
+          cell.innerHTML = '<span class="free-text">FREE</span>';
+        } else {
+          const placeholder = document.createElement('div');
+          placeholder.className = 'placeholder';
+          placeholder.textContent = '📷';
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.textContent = '✕';
+          deleteBtn.title = '写真を削除';
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteImage(i);
+          });
+
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.className = 'label-input';
+          labelInput.placeholder = 'ラベル';
+          labelInput.value = cellData[i].label;
+          labelInput.addEventListener('click', (e) => e.stopPropagation());
+          labelInput.addEventListener('input', (e) => {
+            cellData[i].label = e.target.value;
+          });
+
+          cell.appendChild(placeholder);
+          cell.appendChild(deleteBtn);
+          cell.appendChild(labelInput);
+
+          cell.addEventListener('click', (e) => {
+            if (e.target === labelInput || e.target === deleteBtn) return;
+            if (isTouchDevice()) {
+              openModal(i);
+            } else {
+              if (cellData[i].image) {
+                cellData[i].checked = !cellData[i].checked;
+                cell.classList.toggle('checked', cellData[i].checked);
+              } else {
+                triggerLibrary(i);
+              }
+            }
+          });
+
+          if (cellData[i].image) {
+            renderImage(cell, i);
+            cell.classList.add('has-image');
+          }
+          if (cellData[i].checked) cell.classList.add('checked');
+        }
+
+        grid.appendChild(cell);
+      }
+    }
+
+    // =========== ライブラリ／カメラ起動 ===========
+    function triggerLibrary(index) {
+      currentModalIndex = index;
+      const input = document.getElementById('inputLibrary');
+      input.value = '';
+      input.click();
+    }
+
+    function triggerCamera(index) {
+      currentModalIndex = index;
+      const input = document.getElementById('inputCamera');
+      input.value = '';
+      input.click();
+    }
+
+    // =========== ファイル読み込み ===========
+    function loadFile(file) {
+      if (!file) return;
+      const index = currentModalIndex;
+      if (index < 0) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        cellData[index].image = ev.target.result;
+        const cell = document.querySelector(`.cell[data-index="${index}"]`);
+        renderImage(cell, index);
+        cell.classList.add('has-image');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    document.getElementById('inputLibrary').addEventListener('change', (e) => {
+      loadFile(e.target.files[0]);
+    });
+
+    document.getElementById('inputCamera').addEventListener('change', (e) => {
+      loadFile(e.target.files[0]);
+    });
+
+    // =========== 画像描画 ===========
+    function renderImage(cell, index) {
+      const ph = cell.querySelector('.placeholder');
+      if (ph) ph.remove();
+
+      const oldImg = cell.querySelector('img');
+      if (oldImg) oldImg.remove();
+
+      const img = document.createElement('img');
+      img.src = cellData[index].image;
+
+      const deleteBtn = cell.querySelector('.delete-btn');
+      cell.insertBefore(img, deleteBtn);
+    }
+
+    // =========== 写真削除 ===========
+    function deleteImage(index) {
+      cellData[index].image = null;
+      cellData[index].checked = false;
+
+      const cell = document.querySelector(`.cell[data-index="${index}"]`);
+      const img = cell.querySelector('img');
+      if (img) img.remove();
+
+      const placeholder = document.createElement('div');
+      placeholder.className = 'placeholder';
+      placeholder.textContent = '📷';
+      const deleteBtn = cell.querySelector('.delete-btn');
+      cell.insertBefore(placeholder, deleteBtn);
+
+      cell.classList.remove('has-image', 'checked');
+    }
+
+    // =========== モーダル ===========
+    function openModal(index) {
+      currentModalIndex = index;
+      const data = cellData[index];
+
+      const preview = document.getElementById('modalPreview');
+      if (data.image) {
+        preview.src = data.image;
+        preview.classList.add('show');
+      } else {
+        preview.src = '';
+        preview.classList.remove('show');
+      }
+
+      document.getElementById('btnLibrary').style.display  = !data.image ? 'block' : 'none';
+      document.getElementById('btnCamera').style.display   = !data.image ? 'block' : 'none';
+      document.getElementById('btnReplace').style.display  =  data.image ? 'block' : 'none';
+      document.getElementById('btnCheck').style.display    = (data.image && !data.checked) ? 'block' : 'none';
+      document.getElementById('btnUncheck').style.display  = (data.image &&  data.checked) ? 'block' : 'none';
+      document.getElementById('btnDelete').style.display   =  data.image ? 'block' : 'none';
+
+      document.getElementById('modalTitle').textContent = `マス ${index + 1} の操作`;
+      document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    function overlayTap(e) {
+      if (e.target === document.getElementById('modalOverlay')) closeModal();
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+      currentModalIndex = -1;
+    }
+
+    function modalAction(action) {
+      const i = currentModalIndex;
+      closeModal();
+
+      if (action === 'library') {
+        currentModalIndex = i;
+        triggerLibrary(i);
+      } else if (action === 'camera') {
+        currentModalIndex = i;
+        triggerCamera(i);
+      } else if (action === 'check') {
+        cellData[i].checked = true;
+        document.querySelector(`.cell[data-index="${i}"]`).classList.add('checked');
+      } else if (action === 'uncheck') {
+        cellData[i].checked = false;
+        document.querySelector(`.cell[data-index="${i}"]`).classList.remove('checked');
+      } else if (action === 'delete') {
+        deleteImage(i);
+      }
+    }
+
+    // =========== 全リセット ===========
+    function resetAll() {
+      if (!confirm('すべてリセットしますか？')) return;
+      cellData.forEach(d => { d.image = null; d.label = ''; d.checked = false; });
+      buildGrid();
+    }
+
+    // =========== 画像保存 ===========
+    function saveAsImage() {
+      html2canvas(document.querySelector('.bingo-wrapper'), { scale: 2 })
+        .then(canvas => {
+          const link = document.createElement('a');
+          link.download = 'bingo_sheet.png';
+          link.href = canvas.toDataURL();
+          link.click();
+        });
+    }
+
+    buildGrid();
+  </script>
+
+</body>
+</html>
