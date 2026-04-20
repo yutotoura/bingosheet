@@ -23,7 +23,6 @@
       margin-bottom: 12px;
     }
 
-    /* ======= BINGOヘッダー ======= */
     .bingo-header {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -45,7 +44,6 @@
       padding: 6px 0;
     }
 
-    /* ======= グリッド ======= */
     .bingo-wrapper {
       width: 100%;
       max-width: 500px;
@@ -61,7 +59,6 @@
       gap: 3px;
     }
 
-    /* ======= セル ======= */
     .cell {
       aspect-ratio: 1 / 1;
       background: white;
@@ -88,7 +85,6 @@
       color: #bdc3c7;
     }
 
-    /* FREEスペース */
     .cell.free {
       background: #f39c12;
       cursor: default;
@@ -99,25 +95,29 @@
       font-weight: bold;
     }
 
-    /* ラベル */
-    .cell .label-input {
+    /* ラベル：inputではなくdivで実装 */
+    .cell .label-display {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
       background: rgba(0,0,0,0.55);
       color: white;
-      border: none;
       text-align: center;
       font-size: clamp(8px, 2vw, 11px);
       padding: 2px 2px 3px;
-      outline: none;
       z-index: 2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: 16px;
     }
 
-    .cell input[type="file"] { display: none; }
+    .cell .label-display:empty::before {
+      content: 'ラベル';
+      color: rgba(255,255,255,0.4);
+    }
 
-    /* チェックマーク */
     .cell.checked::after {
       content: '✓';
       position: absolute;
@@ -130,7 +130,6 @@
       z-index: 3;
     }
 
-    /* ======= 削除ボタン ======= */
     .delete-btn {
       position: absolute;
       top: 3px;
@@ -151,10 +150,8 @@
       display: none;
     }
 
-    /* PC：ホバー時のみ */
     .cell.has-image:hover .delete-btn { display: block; }
 
-    /* スマホ：常時表示 */
     @media (hover: none) and (pointer: coarse) {
       .cell.has-image .delete-btn {
         display: block;
@@ -208,6 +205,27 @@
     }
     .modal-preview.show { display: block; }
 
+    /* ラベル編集エリア（モーダル内） */
+    .modal-label-area {
+      display: none;
+      margin-bottom: 10px;
+    }
+    .modal-label-area.show { display: block; }
+    .modal-label-area label {
+      font-size: 13px;
+      color: #555;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .modal-label-area input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+    }
+
     .modal-btn {
       display: block;
       width: 100%;
@@ -228,7 +246,6 @@
     .modal-btn-delete   { background: #e74c3c; color: white; }
     .modal-btn-cancel   { background: #ecf0f1; color: #333; }
 
-    /* ======= コントロール ======= */
     .controls {
       margin-top: 14px;
       display: flex;
@@ -252,7 +269,6 @@
     }
     .ctrl-btn:active { opacity: 0.7; }
 
-    .btn-print { background: #3498db; color: white; }
     .btn-reset { background: #e74c3c; color: white; }
     .btn-save  { background: #2ecc71; color: white; }
 
@@ -262,15 +278,6 @@
       font-size: 12px;
       text-align: center;
       line-height: 1.8;
-    }
-
-    /* ======= 印刷 ======= */
-    @media print {
-      body { background: white; padding: 0; }
-      h1, .controls, .instructions, .modal-overlay { display: none !important; }
-      .bingo-wrapper { box-shadow: none; max-width: 100%; }
-      .delete-btn { display: none !important; }
-      .cell .label-input { background: transparent; color: black; }
     }
   </style>
 </head>
@@ -291,13 +298,12 @@
   </div>
 
   <div class="controls">
-    <button class="ctrl-btn btn-print" onclick="window.print()">🖨️ 印刷</button>
     <button class="ctrl-btn btn-save"  onclick="saveAsImage()">💾 保存</button>
     <button class="ctrl-btn btn-reset" onclick="resetAll()">🔄 リセット</button>
   </div>
 
   <p class="instructions">
-    📱 マスをタップ → ライブラリ／カメラを選択<br>
+    📱 マスをタップ → ライブラリ／カメラ／ラベル編集<br>
     ✅ 写真ありのマスをタップ → チェックON/OFF<br>
     🗑️ 右上の ✕ で写真を削除
   </p>
@@ -308,15 +314,18 @@
       <p class="modal-title" id="modalTitle">操作を選んでください</p>
       <img class="modal-preview" id="modalPreview" src="" alt="preview">
 
-      <!-- 写真なし時 -->
+      <!-- ラベル編集（モーダル内） -->
+      <div class="modal-label-area" id="modalLabelArea">
+        <label>📝 ラベル</label>
+        <input type="text" id="modalLabelInput" placeholder="ラベルを入力">
+      </div>
+
       <button class="modal-btn modal-btn-library" id="btnLibrary" onclick="modalAction('library')">
         🖼️ ライブラリから選ぶ
       </button>
       <button class="modal-btn modal-btn-camera" id="btnCamera" onclick="modalAction('camera')">
         📷 カメラで撮影する
       </button>
-
-      <!-- 写真あり時 -->
       <button class="modal-btn modal-btn-library" id="btnReplace" onclick="modalAction('library')" style="display:none">
         🖼️ 写真を変更する
       </button>
@@ -329,13 +338,11 @@
       <button class="modal-btn modal-btn-delete"  id="btnDelete"  onclick="modalAction('delete')"  style="display:none">
         🗑️ 写真を削除する
       </button>
-
-      <button class="modal-btn modal-btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="modal-btn modal-btn-cancel" onclick="modalAction('save')">✔ 保存して閉じる</button>
     </div>
   </div>
 
-  <!-- ファイル選択input（ライブラリ用・カメラ用を分けて用意） -->
-  <input type="file" id="inputLibrary" accept="image/*"                style="display:none">
+  <input type="file" id="inputLibrary" accept="image/*"                       style="display:none">
   <input type="file" id="inputCamera"  accept="image/*" capture="environment" style="display:none">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -350,7 +357,6 @@
       checked: false
     }));
 
-    // =========== タッチ判定 ===========
     function isTouchDevice() {
       return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     }
@@ -369,12 +375,10 @@
           cell.classList.add('free');
           cell.innerHTML = '<span class="free-text">FREE</span>';
         } else {
-          // プレースホルダー
           const placeholder = document.createElement('div');
           placeholder.className = 'placeholder';
           placeholder.textContent = '📷';
 
-          // 削除ボタン
           const deleteBtn = document.createElement('button');
           deleteBtn.className = 'delete-btn';
           deleteBtn.textContent = '✕';
@@ -384,28 +388,20 @@
             deleteImage(i);
           });
 
-          // ラベル
-          const labelInput = document.createElement('input');
-          labelInput.type = 'text';
-          labelInput.className = 'label-input';
-          labelInput.placeholder = 'ラベル';
-          labelInput.value = cellData[i].label;
-          labelInput.addEventListener('click', (e) => e.stopPropagation());
-          labelInput.addEventListener('input', (e) => {
-            cellData[i].label = e.target.value;
-          });
+          // ラベルはdivで表示
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'label-display';
+          labelDiv.textContent = cellData[i].label;
 
           cell.appendChild(placeholder);
           cell.appendChild(deleteBtn);
-          cell.appendChild(labelInput);
+          cell.appendChild(labelDiv);
 
-          // セルタップ
           cell.addEventListener('click', (e) => {
-            if (e.target === labelInput || e.target === deleteBtn) return;
+            if (e.target === deleteBtn) return;
             if (isTouchDevice()) {
               openModal(i);
             } else {
-              // PC：写真があればチェック、なければライブラリ
               if (cellData[i].image) {
                 cellData[i].checked = !cellData[i].checked;
                 cell.classList.toggle('checked', cellData[i].checked);
@@ -415,7 +411,6 @@
             }
           });
 
-          // データ復元
           if (cellData[i].image) {
             renderImage(cell, i);
             cell.classList.add('has-image');
@@ -427,7 +422,6 @@
       }
     }
 
-    // =========== ライブラリ選択をトリガー ===========
     function triggerLibrary(index) {
       currentModalIndex = index;
       const input = document.getElementById('inputLibrary');
@@ -442,7 +436,6 @@
       input.click();
     }
 
-    // =========== ファイル読み込み共通処理 ===========
     function loadFile(file) {
       if (!file) return;
       const index = currentModalIndex;
@@ -458,17 +451,13 @@
       reader.readAsDataURL(file);
     }
 
-    // ライブラリ用inputのchangeイベント
     document.getElementById('inputLibrary').addEventListener('change', (e) => {
       loadFile(e.target.files[0]);
     });
-
-    // カメラ用inputのchangeイベント
     document.getElementById('inputCamera').addEventListener('change', (e) => {
       loadFile(e.target.files[0]);
     });
 
-    // =========== 画像描画 ===========
     function renderImage(cell, index) {
       const ph = cell.querySelector('.placeholder');
       if (ph) ph.remove();
@@ -483,7 +472,6 @@
       cell.insertBefore(img, deleteBtn);
     }
 
-    // =========== 写真削除 ===========
     function deleteImage(index) {
       cellData[index].image = null;
       cellData[index].checked = false;
@@ -506,7 +494,6 @@
       currentModalIndex = index;
       const data = cellData[index];
 
-      // プレビュー
       const preview = document.getElementById('modalPreview');
       if (data.image) {
         preview.src = data.image;
@@ -516,22 +503,25 @@
         preview.classList.remove('show');
       }
 
-      // 写真なし時のボタン
+      // ラベル入力欄をセット
+      const labelArea  = document.getElementById('modalLabelArea');
+      const labelInput = document.getElementById('modalLabelInput');
+      labelArea.classList.add('show');
+      labelInput.value = data.label;
+
       document.getElementById('btnLibrary').style.display  = !data.image ? 'block' : 'none';
       document.getElementById('btnCamera').style.display   = !data.image ? 'block' : 'none';
-
-      // 写真あり時のボタン
-      document.getElementById('btnReplace').style.display  = data.image  ? 'block' : 'none';
+      document.getElementById('btnReplace').style.display  =  data.image ? 'block' : 'none';
       document.getElementById('btnCheck').style.display    = (data.image && !data.checked) ? 'block' : 'none';
-      document.getElementById('btnUncheck').style.display  = (data.image && data.checked)  ? 'block' : 'none';
-      document.getElementById('btnDelete').style.display   = data.image  ? 'block' : 'none';
+      document.getElementById('btnUncheck').style.display  = (data.image &&  data.checked) ? 'block' : 'none';
+      document.getElementById('btnDelete').style.display   =  data.image ? 'block' : 'none';
 
       document.getElementById('modalTitle').textContent = `マス ${index + 1} の操作`;
       document.getElementById('modalOverlay').classList.add('active');
     }
 
     function overlayTap(e) {
-      if (e.target === document.getElementById('modalOverlay')) closeModal();
+      if (e.target === document.getElementById('modalOverlay')) modalAction('save');
     }
 
     function closeModal() {
@@ -541,10 +531,24 @@
 
     function modalAction(action) {
       const i = currentModalIndex;
+
+      // ラベルを常に保存
+      if (i >= 0) {
+        const labelVal = document.getElementById('modalLabelInput').value;
+        cellData[i].label = labelVal;
+        const labelDiv = document.querySelector(`.cell[data-index="${i}"] .label-display`);
+        if (labelDiv) labelDiv.textContent = labelVal;
+      }
+
+      if (action === 'save') {
+        closeModal();
+        return;
+      }
+
       closeModal();
 
       if (action === 'library') {
-        currentModalIndex = i; // closeModal でリセットされるので再セット
+        currentModalIndex = i;
         triggerLibrary(i);
       } else if (action === 'camera') {
         currentModalIndex = i;
@@ -560,7 +564,6 @@
       }
     }
 
-    // =========== 全リセット ===========
     function resetAll() {
       if (!confirm('すべてリセットしますか？')) return;
       cellData.forEach(d => { d.image = null; d.label = ''; d.checked = false; });
@@ -569,12 +572,51 @@
 
     // =========== 画像保存 ===========
     function saveAsImage() {
-      html2canvas(document.querySelector('.bingo-wrapper'), { scale: 2 })
+      const wrapper = document.querySelector('.bingo-wrapper');
+
+      // 保存前：ラベルdivのスタイルを強化
+      const labelDivs = wrapper.querySelectorAll('.label-display');
+      labelDivs.forEach(div => {
+        const cell = div.closest('.cell');
+        if (cell.classList.contains('has-image')) {
+          div.style.background  = 'rgba(0,0,0,0.78)';
+          div.style.color       = 'white';
+          div.style.fontSize    = '13px';
+          div.style.fontWeight  = 'bold';
+          div.style.padding     = '3px 4px';
+        } else {
+          div.style.background  = 'rgba(255,255,255,0.92)';
+          div.style.color       = '#111';
+          div.style.fontSize    = '13px';
+          div.style.fontWeight  = 'bold';
+          div.style.padding     = '3px 4px';
+        }
+      });
+
+      html2canvas(wrapper, { scale: 2, useCORS: true })
         .then(canvas => {
+          // 保存後：スタイルを元に戻す
+          labelDivs.forEach(div => {
+            div.style.background = '';
+            div.style.color      = '';
+            div.style.fontSize   = '';
+            div.style.fontWeight = '';
+            div.style.padding    = '';
+          });
+
           const link = document.createElement('a');
           link.download = 'bingo_sheet.png';
           link.href = canvas.toDataURL();
           link.click();
+        })
+        .catch(() => {
+          labelDivs.forEach(div => {
+            div.style.background = '';
+            div.style.color      = '';
+            div.style.fontSize   = '';
+            div.style.fontWeight = '';
+            div.style.padding    = '';
+          });
         });
     }
 
